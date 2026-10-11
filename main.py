@@ -163,7 +163,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     sigint_timer.start(500)
 
     # Resolve target repository
-    target_repo = resolve_repository_path(args.repo_path)
+    # Do not implicitly open the repository containing the working directory.
+    # Launching without a path should leave the user on the home screen.
+    target_repo = resolve_repository_path(args.repo_path) if args.repo_path else None
     if target_repo:
         logger.info("Opening repository at %s", target_repo)
         state.open_repository(target_repo)

@@ -86,6 +86,19 @@ def test_main_cli_with_repo_launch(qtbot, tmp_path):
     assert ret == 0
 
 
+def test_main_cli_without_repo_starts_on_home_screen(qtbot, monkeypatch, tmp_path):
+    repo_dir = str(tmp_path / "working_directory_repo")
+    pygit2.init_repository(repo_dir)
+    monkeypatch.chdir(repo_dir)
+    open_repository = MagicMock()
+    monkeypatch.setattr(AppState, "open_repository", open_repository)
+
+    ret = main([])
+
+    assert ret == 0
+    open_repository.assert_not_called()
+
+
 def test_main_window_close_event_cleanup(qtbot, tmp_path):
     repo_dir = str(tmp_path / "close_test_repo")
     pygit2.init_repository(repo_dir)
