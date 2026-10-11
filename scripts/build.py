@@ -290,6 +290,10 @@ def build_appimage(bundle_dir: Path, version: str, output_dir: Path) -> Optional
         "#!/bin/sh\n"
         "SELF=$(readlink -f \"$0\")\n"
         "HERE=${SELF%/*}\n"
+        "if [ -f \"${HERE}/opt/strand/resources/ca-certificates.crt\" ]; then\n"
+        "  export SSL_CERT_FILE=\"${HERE}/opt/strand/resources/ca-certificates.crt\"\n"
+        "  export GIT_SSL_CAINFO=\"${HERE}/opt/strand/resources/ca-certificates.crt\"\n"
+        "fi\n"
         "export PATH=\"${HERE}/opt/strand:${PATH}\"\n"
         "export LD_LIBRARY_PATH=\"${HERE}/opt/strand:${LD_LIBRARY_PATH}\"\n"
         "exec \"${HERE}/opt/strand/strand\" \"$@\"\n",

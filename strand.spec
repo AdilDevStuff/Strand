@@ -33,6 +33,8 @@ datas += collect_data_files("pygit2")
 datas += collect_data_files("pygments")
 if os.path.isdir("resources"):
     datas.append(("resources", "resources"))
+if os.path.isfile("/etc/ssl/certs/ca-certificates.crt"):
+    datas.append(("/etc/ssl/certs/ca-certificates.crt", "resources"))
 
 a = Analysis(
     ["main.py"],
@@ -42,7 +44,7 @@ a = Analysis(
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=["resources/pygit2_ssl.py"],
     excludes=["tkinter", "matplotlib", "scipy"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -87,4 +89,3 @@ if sys.platform == "darwin":
         icon=None,
         bundle_identifier="com.strand.gitclient",
     )
-
