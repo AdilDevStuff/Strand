@@ -201,17 +201,17 @@ All generated release assets and SHA256 hashes are placed into `dist/`:
 
 ---
 
-## Codeberg CI/CD & Automated Releases
+## GitHub CI/CD & Automated Releases
 
-Automated testing and release pipelines are pre-configured for **Codeberg**:
+Continuous integration and automated release generation are powered by **GitHub Actions** (`.github/workflows/`):
 
-- **Codeberg Actions / Forgejo Actions** (`.forgejo/workflows/`):
-  - `ci.yaml`: Runs tests on pull requests and commits to `main`.
-  - `release.yaml`: Automatically compiles standalone binaries, builds packages, computes checksums, and publishes a new **Codeberg Release** whenever a tag (`v*`) is pushed.
-- **Codeberg Woodpecker CI** (`.woodpecker/`):
-  - `ci.yml` & `release.yml`: Native Woodpecker pipeline support for `ci.codeberg.org`.
+- **Continuous Integration (`ci.yml`)**:
+  - Automatically runs the full test suite (`pytest`) on Linux and verifies packaging on every commit to `main` and Pull Request.
+- **Automated Releases (`release.yml`)**:
+  - Triggered automatically whenever a version tag (`v*`) is pushed.
+  - Builds standalone binaries, source distributions, Python wheels, computes cryptographic checksums, and publishes a new **GitHub Release** with generated release notes.
 
-For step-by-step instructions on configuring self-hosted runners or tokens, see [Codeberg Runners Setup Guide](docs/CODEBERG_RUNNERS.md).
+For more details on releases, see the [GitHub Actions Guide](docs/GITHUB_ACTIONS.md).
 
 ---
 
