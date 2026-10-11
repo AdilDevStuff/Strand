@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Strand
+Comment=Production-grade, high-performance desktop Git client
+Exec=strand %F
+Icon=strand
+Terminal=false
+Type=Application
+Categories=Development;RevisionControl;Git;IDE;
+StartupWMClass=Strand
+Keywords=git;version control;diff;commit;repository;
+MimeType=x-scheme-handler/git;

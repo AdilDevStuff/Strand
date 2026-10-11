@@ -95,7 +95,14 @@ def build_standalone(version: str, output_dir: Path) -> list[Path]:
     archive_base = f"strand-{version}-{sys_name}-{arch_name}"
     artifacts: list[Path] = []
 
-    if sys_name == "windows":
+    app_bundle = output_dir / "Strand.app"
+    if sys_name == "darwin" and app_bundle.exists():
+        archive_path = output_dir / f"{archive_base}.tar.gz"
+        print(f"📦 Packaging macOS App bundle: {archive_path.name}...")
+        with tarfile.open(archive_path, "w:gz") as tf:
+            tf.add(app_bundle, arcname="Strand.app")
+        artifacts.append(archive_path)
+    elif sys_name == "windows":
         archive_path = output_dir / f"{archive_base}.zip"
         print(f"📦 Packaging Windows archive: {archive_path.name}...")
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -107,13 +114,206 @@ def build_standalone(version: str, output_dir: Path) -> list[Path]:
         artifacts.append(archive_path)
     else:
         archive_path = output_dir / f"{archive_base}.tar.gz"
-        print(f"📦 Packaging Linux/macOS archive: {archive_path.name}...")
+        print(f"📦 Packaging Linux/Unix archive: {archive_path.name}...")
         with tarfile.open(archive_path, "w:gz") as tf:
             tf.add(bundle_dir, arcname=archive_base)
         artifacts.append(archive_path)
 
     print(f"✅ Standalone archive created: {archive_path}")
+
+    # Build Linux system distribution packages (.deb, .rpm, .AppImage)
+    if sys_name == "linux":
+        deb_pkg = build_deb_package(bundle_dir, version, output_dir)
+        if deb_pkg:
+            artifacts.append(deb_pkg)
+
+        rpm_pkg = build_rpm_package(bundle_dir, version, output_dir)
+        if rpm_pkg:
+            artifacts.append(rpm_pkg)
+
+        appimage_pkg = build_appimage(bundle_dir, version, output_dir)
+        if appimage_pkg:
+            artifacts.append(appimage_pkg)
+
     return artifacts
+
+
+def build_deb_package(bundle_dir: Path, version: str, output_dir: Path) -> Optional[Path]:
+    """Package Strand bundle as a Debian (.deb) package."""
+    print("\n📦 Packaging Debian (.deb) package...")
+    deb_dir = BUILD_DIR / "pkg_deb"
+    if deb_dir.exists():
+        shutil.rmtree(deb_dir, ignore_errors=True)
+
+    opt_dir = deb_dir / "opt" / "strand"
+    opt_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(bundle_dir, opt_dir, dirs_exist_ok=True)
+
+    bin_dir = deb_dir / "usr" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    symlink_path = bin_dir / "strand"
+    try:
+        os.symlink("/opt/strand/strand", symlink_path)
+    except Exception:
+        symlink_path.write_text("#!/bin/sh\nexec /opt/strand/strand \"$@\"\n", encoding="utf-8")
+        symlink_path.chmod(0o755)
+
+    apps_dir = deb_dir / "usr" / "share" / "applications"
+    apps_dir.mkdir(parents=True, exist_ok=True)
+    desktop_src = ROOT_DIR / "resources" / "strand.desktop"
+    if desktop_src.exists():
+        shutil.copy(desktop_src, apps_dir / "strand.desktop")
+
+    icons_dir = deb_dir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+    icons_dir.mkdir(parents=True, exist_ok=True)
+    icon_src = ROOT_DIR / "resources" / "icons" / "strand.png"
+    if icon_src.exists():
+        shutil.copy(icon_src, icons_dir / "strand.png")
+
+    debian_dir = deb_dir / "DEBIAN"
+    debian_dir.mkdir(parents=True, exist_ok=True)
+    control_content = f"""Package: strand
+Version: {version}
+Section: devel
+Priority: optional
+Architecture: amd64
+Maintainer: Strand Core Team <team@strand.local>
+Depends: libgl1, libegl1, libxkbcommon-x11-0
+Description: Production-grade desktop Git client built with Python, Qt6, and libgit2.
+ High-performance visual Git client featuring an elevated commit box,
+ visual history graph, hunk-level diff staging, and branch management.
+"""
+    (debian_dir / "control").write_text(control_content, encoding="utf-8")
+
+    deb_filename = f"strand_{version}_amd64.deb"
+    deb_path = output_dir / deb_filename
+
+    if shutil.which("dpkg-deb"):
+        res = subprocess.run(["dpkg-deb", "--build", str(deb_dir), str(deb_path)], capture_output=True)
+        if res.returncode == 0 and deb_path.exists():
+            print(f"✅ Debian package created (via dpkg-deb): {deb_path}")
+            return deb_path
+
+    # Pure Python fallback for building .deb ar archive
+    try:
+        import io
+        deb_binary = b"2.0\n"
+
+        control_buf = io.BytesIO()
+        with tarfile.open(fileobj=control_buf, mode="w:gz") as tf:
+            for item in sorted(debian_dir.iterdir()):
+                tf.add(item, arcname=f"./{item.name}")
+        control_data = control_buf.getvalue()
+
+        data_buf = io.BytesIO()
+        with tarfile.open(fileobj=data_buf, mode="w:gz") as tf:
+            for item in ["opt", "usr"]:
+                src = deb_dir / item
+                if src.exists():
+                    tf.add(src, arcname=f"./{item}")
+        data_tar = data_buf.getvalue()
+
+        with open(deb_path, "wb") as f:
+            f.write(b"!<arch>\n")
+            for fname, content in [("debian-binary", deb_binary), ("control.tar.gz", control_data), ("data.tar.gz", data_tar)]:
+                header = f"{fname:<16}{0:<12}{0:<6}{0:<6}{100644:<8o}{len(content):<10}`\n".encode("ascii")
+                f.write(header)
+                f.write(content)
+                if len(content) % 2 != 0:
+                    f.write(b"\n")
+        print(f"✅ Debian package created (pure python): {deb_path}")
+        return deb_path
+    except Exception as exc:
+        print(f"⚠️ Could not build Debian package: {exc}")
+        return None
+
+
+def build_rpm_package(bundle_dir: Path, version: str, output_dir: Path) -> Optional[Path]:
+    """Package Strand bundle as an RPM package if fpm is available."""
+    rpm_filename = f"strand-{version}-1.x86_64.rpm"
+    rpm_path = output_dir / rpm_filename
+
+    if shutil.which("fpm"):
+        print("\n📦 Packaging RPM package using fpm...")
+        pkg_dir = BUILD_DIR / "pkg_deb"
+        if not pkg_dir.exists():
+            return None
+        cmd = [
+            "fpm",
+            "-s", "dir",
+            "-t", "rpm",
+            "-n", "strand",
+            "-v", version,
+            "--iteration", "1",
+            "--architecture", "x86_64",
+            "--description", "Production-grade desktop Git client built with Python, Qt6, and libgit2.",
+            "-p", str(rpm_path),
+            "-C", str(pkg_dir),
+            "opt", "usr",
+        ]
+        res = subprocess.run(cmd, capture_output=True)
+        if res.returncode == 0 and rpm_path.exists():
+            print(f"✅ RPM package created: {rpm_path}")
+            return rpm_path
+        else:
+            print(f"⚠️ fpm RPM packaging returned code {res.returncode}")
+            if res.stderr:
+                print(res.stderr.decode("utf-8", errors="replace"))
+            if res.stdout:
+                print(res.stdout.decode("utf-8", errors="replace"))
+    return None
+
+
+def build_appimage(bundle_dir: Path, version: str, output_dir: Path) -> Optional[Path]:
+    """Package Strand bundle as an AppImage if appimagetool is available."""
+    appimagetool = shutil.which("appimagetool")
+    if not appimagetool:
+        return None
+
+    print("\n📦 Packaging AppImage using appimagetool...")
+    app_dir = BUILD_DIR / "AppDir"
+    if app_dir.exists():
+        shutil.rmtree(app_dir, ignore_errors=True)
+
+    opt_dir = app_dir / "opt" / "strand"
+    opt_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(bundle_dir, opt_dir, dirs_exist_ok=True)
+
+    apprun = app_dir / "AppRun"
+    apprun.write_text(
+        "#!/bin/sh\n"
+        "SELF=$(readlink -f \"$0\")\n"
+        "HERE=${SELF%/*}\n"
+        "export PATH=\"${HERE}/opt/strand:${PATH}\"\n"
+        "export LD_LIBRARY_PATH=\"${HERE}/opt/strand:${LD_LIBRARY_PATH}\"\n"
+        "exec \"${HERE}/opt/strand/strand\" \"$@\"\n",
+        encoding="utf-8",
+    )
+    apprun.chmod(0o755)
+
+    desktop_src = ROOT_DIR / "resources" / "strand.desktop"
+    if desktop_src.exists():
+        shutil.copy(desktop_src, app_dir / "strand.desktop")
+
+    icon_src = ROOT_DIR / "resources" / "icons" / "strand.png"
+    if icon_src.exists():
+        shutil.copy(icon_src, app_dir / "strand.png")
+        shutil.copy(icon_src, app_dir / ".DirIcon")
+
+    appimage_path = output_dir / f"Strand-{version}-x86_64.AppImage"
+    cmd = [appimagetool, "--no-appstream", str(app_dir), str(appimage_path)]
+    env = dict(os.environ, ARCH="x86_64")
+    res = subprocess.run(cmd, env=env, capture_output=True)
+    if res.returncode == 0 and appimage_path.exists():
+        print(f"✅ AppImage created: {appimage_path}")
+        return appimage_path
+    else:
+        print(f"⚠️ appimagetool returned code {res.returncode}")
+        if res.stderr:
+            print(res.stderr.decode("utf-8", errors="replace"))
+        if res.stdout:
+            print(res.stdout.decode("utf-8", errors="replace"))
+        return None
 
 
 def build_python_packages(output_dir: Path) -> list[Path]:
@@ -152,7 +352,7 @@ def generate_checksums(output_dir: Path) -> Path:
 
     for file_path in sorted(output_dir.iterdir()):
         if file_path.is_file() and file_path.name != "SHA256SUMS.txt" and not file_path.name.startswith("."):
-            if file_path.suffix in (".zip", ".gz", ".whl", ".AppImage"):
+            if file_path.suffix in (".zip", ".gz", ".whl", ".AppImage", ".deb", ".rpm"):
                 sha = compute_sha256(file_path)
                 lines.append(f"{sha}  {file_path.name}")
                 print(f"   SHA256 ({file_path.name}) = {sha}")
