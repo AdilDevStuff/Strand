@@ -46,7 +46,7 @@ from services.app_state import AppState
 from ui.main_window import MainWindow
 from ui.theme import Theme
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __app_name__ = "Strand"
 
 
@@ -171,6 +171,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         state.open_repository(target_repo)
     elif args.repo_path:
         logger.warning("Specified path '%s' is not a valid Git repository", args.repo_path)
+    else:
+        window.restore_saved_repositories()
 
     if owns_app:
         return app.exec()

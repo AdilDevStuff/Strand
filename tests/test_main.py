@@ -8,7 +8,7 @@ import sys
 from unittest.mock import MagicMock, patch
 import pygit2
 import pytest
-from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
+from PySide6.QtCore import QMimeData, QPoint, QSettings, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QApplication
 
@@ -92,11 +92,17 @@ def test_main_cli_without_repo_starts_on_home_screen(qtbot, monkeypatch, tmp_pat
     monkeypatch.chdir(repo_dir)
     open_repository = MagicMock()
     monkeypatch.setattr(AppState, "open_repository", open_repository)
+    settings = QSettings("Strand", "Strand")
+    settings.clear()
+    settings.sync()
 
-    ret = main([])
-
-    assert ret == 0
-    open_repository.assert_not_called()
+    try:
+        ret = main([])
+        assert ret == 0
+        open_repository.assert_not_called()
+    finally:
+        settings.clear()
+        settings.sync()
 
 
 def test_main_window_close_event_cleanup(qtbot, tmp_path):

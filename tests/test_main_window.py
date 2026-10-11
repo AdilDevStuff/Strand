@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import pygit2
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 
 from core.models import FileChange, FileStatus
 from services.app_state import AppState
@@ -35,6 +35,9 @@ def test_main_window_initialization(qtbot) -> None:
     assert window.btn_home_open_repo.text() == "Open Local Repository"
     assert window.btn_home_clone_repo.text() == "Clone Repository"
     assert window.sidebar_branches.btn_project.menu() is not None
+    assert "Clone Repository…" in [
+        action.text() for action in window.sidebar_branches.project_menu.actions()
+    ]
     assert "Push" in window.btn_push.text()
     assert "Pull" in window.btn_pull.text()
 
@@ -141,6 +144,33 @@ def test_main_window_close_current_repository_activates_next_repo(qtbot, tmp_pat
     )
     assert window.view_stack.currentWidget() == window.main_h_splitter
     assert window.sidebar_branches.repository_paths == [os.path.abspath(first_repo)]
+
+
+def test_main_window_restores_saved_repositories(qtbot, tmp_path) -> None:
+    first_repo = str(tmp_path / "saved_first")
+    second_repo = str(tmp_path / "saved_second")
+    pygit2.init_repository(first_repo)
+    pygit2.init_repository(second_repo)
+    settings = QSettings("Strand", "Strand")
+    settings.setValue("repositories", [first_repo, second_repo])
+    settings.setValue("active_repository", second_repo)
+    settings.sync()
+
+    try:
+        window = MainWindow()
+        qtbot.addWidget(window)
+        window.restore_saved_repositories()
+        qtbot.waitUntil(
+            lambda: window.state.current_repo_path == os.path.abspath(second_repo),
+            timeout=5000,
+        )
+        assert window.sidebar_branches.repository_paths == [
+            os.path.abspath(first_repo),
+            os.path.abspath(second_repo),
+        ]
+    finally:
+        settings.clear()
+        settings.sync()
 
 
 def test_clone_progress_updates_loading_overlay(qtbot) -> None:

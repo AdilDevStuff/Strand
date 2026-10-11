@@ -44,6 +44,7 @@ class BranchListWidget(QWidget):
     tag_create_requested = Signal()
     tag_selected = Signal(str)
     open_repo_requested = Signal()
+    clone_repo_requested = Signal()
     repository_selected = Signal(str)
     close_repo_requested = Signal()
 
@@ -153,6 +154,7 @@ class BranchListWidget(QWidget):
         """)
         self.project_menu = QMenu(self.btn_project)
         self.btn_project.setMenu(self.project_menu)
+        self.set_repositories([])
         self.lbl_project_name = self.btn_project
         self.lbl_repo_name = self.lbl_project_name
         proj_layout.addWidget(self.btn_project, 1)
@@ -226,6 +228,8 @@ class BranchListWidget(QWidget):
             self.project_menu.addSeparator()
         open_action = self.project_menu.addAction("Open Repository…")
         open_action.triggered.connect(self.open_repo_requested)
+        clone_action = self.project_menu.addAction("Clone Repository…")
+        clone_action.triggered.connect(self.clone_repo_requested)
         close_action = self.project_menu.addAction("Close Current Repository")
         close_action.setEnabled(bool(active_path))
         close_action.triggered.connect(self.close_repo_requested)

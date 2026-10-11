@@ -9,7 +9,7 @@ import subprocess
 import re
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QProcess, QSize, QTimer, Qt
+from PySide6.QtCore import QProcess, QSettings, QSize, QTimer, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.state = app_state or AppState()
+        self._app_closing = False
         self.stash_dialog = StashDialog(self)
 
         self.setWindowTitle("Strand")
@@ -436,6 +437,7 @@ class MainWindow(QMainWindow):
 
         # Toolbar actions
         self.sidebar_branches.open_repo_requested.connect(self._prompt_open_repository)
+        self.sidebar_branches.clone_repo_requested.connect(self._prompt_clone_repository)
         self.sidebar_branches.repository_selected.connect(self._switch_repository)
         self.sidebar_branches.close_repo_requested.connect(self._close_current_repository)
         self.toolbar.checkout_requested.connect(self._on_checkout_requested)
@@ -821,6 +823,7 @@ class MainWindow(QMainWindow):
         self.sidebar_branches.set_repositories(repository_paths, repo_path)
         self.sidebar_branches.set_repo_name(base_name)
         self.setWindowTitle(f"Strand - {base_name}")
+        self._save_open_repositories()
         self._show_success(f"Opened repository {base_name}")
 
     def _on_repo_closed(self) -> None:
@@ -835,12 +838,16 @@ class MainWindow(QMainWindow):
         if remaining_paths:
             self._set_home_visible(False)
             self.sidebar_branches.set_repositories(remaining_paths)
+            if not self._app_closing:
+                self._save_open_repositories()
             self.state.open_repository(remaining_paths[0])
             return
 
         self._set_home_visible(True)
         self.sidebar_branches.set_repositories([])
         self.sidebar_branches.set_repo_name("No repository")
+        if not self._app_closing:
+            self._save_open_repositories()
         self.setWindowTitle("Strand")
         self.sidebar_branches.set_branches({"local": [], "remote": []}, "")
         self.graph_view.set_commits([])
@@ -850,6 +857,37 @@ class MainWindow(QMainWindow):
         self._clear_search()
         self.status_tree.set_changes([], [])
         self.commit_box.clear()
+
+    @staticmethod
+    def _settings() -> QSettings:
+        return QSettings("Strand", "Strand")
+
+    def _save_open_repositories(self) -> None:
+        """Persist open repositories and the currently active repository."""
+        settings = self._settings()
+        settings.setValue("repositories", self.sidebar_branches.repository_paths)
+        settings.setValue("active_repository", self.state.current_repo_path or "")
+        settings.sync()
+
+    def restore_saved_repositories(self) -> None:
+        """Restore previously open repositories that still exist on disk."""
+        settings = self._settings()
+        saved_paths = settings.value("repositories", [], type=list)
+        active_path = settings.value("active_repository", "", type=str)
+        paths = [
+            os.path.abspath(path)
+            for path in saved_paths
+            if isinstance(path, str) and os.path.isdir(path)
+        ]
+        if active_path in paths:
+            paths.remove(active_path)
+            paths.append(active_path)
+        for path in paths:
+            self.state.open_repository(path)
+        if paths != saved_paths:
+            settings.setValue("repositories", paths)
+            settings.setValue("active_repository", paths[-1] if paths else "")
+            settings.sync()
 
     def _on_branch_changed(self, active_branch: str) -> None:
         self.sidebar_branches.set_active_branch(active_branch)
@@ -1150,6 +1188,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         if hasattr(self, "state") and self.state is not None:
+            self._app_closing = True
+            self._save_open_repositories()
             self.state.close_repository()
         super().closeEvent(event)
 
