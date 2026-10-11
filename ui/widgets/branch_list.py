@@ -119,6 +119,7 @@ class BranchListWidget(QWidget):
             font-size: 12px;
             font-weight: 600;
         """)
+        self.lbl_repo_name = self.lbl_project_name
         proj_layout.addWidget(self.lbl_project_name)
 
         proj_layout.addStretch()

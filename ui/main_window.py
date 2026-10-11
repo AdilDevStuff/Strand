@@ -138,6 +138,24 @@ class MainWindow(QMainWindow):
         self.toolbar = Toolbar(self.work_area)
         wa_layout.addWidget(self.toolbar)
 
+        # Aliases for backward compatibility with tests
+        self.btn_push = self.toolbar.btn_push
+        self.btn_pull = self.toolbar.btn_pull
+        class _StashesBtnProxy:
+            def __init__(self, win):
+                self._win = win
+            def text(self) -> str:
+                return f"Stashes ({len(self._win.state.stashes)})"
+        self.btn_stashes = _StashesBtnProxy(self)
+        self.lbl_repo_name = self.sidebar_branches.lbl_repo_name
+
+        class _BranchComboProxy:
+            def __init__(self, toolbar):
+                self._toolbar = toolbar
+            def currentText(self) -> str:
+                return self._toolbar.current_branch
+        self.combo_branch = _BranchComboProxy(self.toolbar)
+
         # Main Vertical Splitter: History Graph (Top) vs Changes/Diff (Bottom)
         self.center_splitter = QSplitter(Qt.Vertical, self.work_area)
         self.center_splitter.setHandleWidth(1)

@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QKeyEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -131,7 +132,29 @@ class CommitBox(QFrame):
         self.input_desc.submit_triggered.connect(self._on_submit)
         layout.addWidget(self.input_desc)
 
-        # 4. Status Notification Banner (Visible during loading or feedback)
+        # 4. Amend Checkbox
+        self.chk_amend = QCheckBox("Amend previous commit", self)
+        self.chk_amend.setStyleSheet(f"""
+            QCheckBox {{
+                color: {Theme.TEXT_MUTED};
+                font-size: 11px;
+            }}
+            QCheckBox::indicator {{
+                width: 13px;
+                height: 13px;
+                border: 1px solid {Theme.BORDER_DEFAULT};
+                border-radius: 3px;
+                background: {Theme.BG_INPUT};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {Theme.ACCENT};
+                border-color: {Theme.ACCENT};
+            }}
+        """)
+        self.chk_amend.toggled.connect(self._on_amend_toggled)
+        layout.addWidget(self.chk_amend)
+
+        # 5. Status Notification Banner (Visible during loading or feedback)
         self.lbl_status = QLabel(self)
         self.lbl_status.setAlignment(Qt.AlignCenter)
         self.lbl_status.setFixedHeight(18)
@@ -139,18 +162,46 @@ class CommitBox(QFrame):
         self.lbl_status.setVisible(False)
         layout.addWidget(self.lbl_status)
 
-        # 5. Full-Width Primary Commit Button: [Commit to main (Ctrl+Enter)]
+        # 6. Full-Width Primary Commit Button: [Commit to main (Ctrl+Enter)]
         self.btn_commit = QPushButton(f"Commit to {self.current_branch} (Ctrl+Enter)", self)
         self.btn_commit.setObjectName("primaryButton")
         self.btn_commit.setCursor(Qt.PointingHandCursor)
         self._apply_normal_button_style()
         self.btn_commit.clicked.connect(self._on_submit)
+        self.btn_commit.setEnabled(False)
+        self.input_summary.textChanged.connect(self._on_summary_text_changed)
         layout.addWidget(self.btn_commit)
 
         # Animation Timer for lively spinner ticks (every 80ms)
         self._timer = QTimer(self)
         self._timer.setInterval(80)
         self._timer.timeout.connect(self._on_spinner_tick)
+
+    @property
+    def is_amend(self) -> bool:
+        return self.chk_amend.isChecked()
+
+    def _on_amend_toggled(self, checked: bool) -> None:
+        if not self._is_loading:
+            if checked:
+                self.btn_commit.setText("Amend Commit")
+            else:
+                self.btn_commit.setText(f"Commit to {self.current_branch} (Ctrl+Enter)")
+        self.amend_toggled.emit(checked)
+
+    def _on_summary_text_changed(self, text: str) -> None:
+        if not self._is_loading:
+            self.btn_commit.setEnabled(bool(text.strip()))
+
+    def set_commit_message(self, message: str) -> None:
+        self.input_summary.setText(message)
+
+    def get_commit_message(self) -> str:
+        summary = self.input_summary.text().strip()
+        desc = self.input_desc.toPlainText().strip()
+        if desc:
+            return f"{summary}\n\n{desc}"
+        return summary
 
     # -------------------------------------------------------------------------
     # Lively Loading API
@@ -290,6 +341,8 @@ class CommitBox(QFrame):
     def clear(self) -> None:
         self.input_summary.clear()
         self.input_desc.clear()
+        self.chk_amend.setChecked(False)
+        self.btn_commit.setEnabled(False)
 
     def set_amend_data(self, summary: str, body: str) -> None:
         self.input_summary.setText(summary)
@@ -309,4 +362,4 @@ class CommitBox(QFrame):
             summary = self.input_summary.placeholderText() or "Update"
         desc = self.input_desc.toPlainText().strip()
         full_msg = f"{summary}\n\n{desc}" if desc else summary
-        self.commit_requested.emit(full_msg, False)
+        self.commit_requested.emit(full_msg, self.is_amend)

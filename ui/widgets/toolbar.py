@@ -143,7 +143,13 @@ class Toolbar(QFrame):
         """)
         layout.addWidget(self.lbl_sync_badge)
 
-        # 4. Action Buttons: [↓ Fetch], [⇊ Pull], [↑ Push]
+        # 4. Action Buttons: [↻ Refresh], [↓ Fetch], [⇊ Pull], [↑ Push]
+        self.btn_refresh = QPushButton("↻ Refresh", self)
+        self.btn_refresh.setCursor(Qt.PointingHandCursor)
+        self.btn_refresh.setStyleSheet(self._button_style())
+        self.btn_refresh.clicked.connect(self.refresh_requested)
+        layout.addWidget(self.btn_refresh)
+
         self.btn_fetch = QPushButton("↓ Fetch", self)
         self.btn_fetch.setCursor(Qt.PointingHandCursor)
         self.btn_fetch.setStyleSheet(self._button_style())
@@ -191,8 +197,34 @@ class Toolbar(QFrame):
         else:
             self.btn_repo.setText("📁  No repository ⌵")
 
-    def set_branches(self, branches: Dict[str, List[str]], current_branch: str) -> None:
+    def set_repository(self, path: str) -> None:
+        """Alias for set_repo."""
+        self.set_repo(path)
+
+    def set_current_branch(self, branch: str) -> None:
+        """Set current active branch."""
+        self.current_branch = branch
+        display_name = branch or "Branch"
+        self.btn_branch.setText(f"⑂  {display_name} ⌵")
+
+    @property
+    def lbl_repo_name(self):
+        class _RepoNameProxy:
+            def __init__(self, tb):
+                self._tb = tb
+            def text(self) -> str:
+                raw = self._tb.repo_path.replace("\\", "/")
+                return os.path.basename(raw)
+        return _RepoNameProxy(self)
+
+    @property
+    def lbl_ahead_behind(self):
+        return self.lbl_sync_badge
+
+    def set_branches(self, branches: Dict[str, List[str]], current_branch: str = "") -> None:
         """Populate branch switcher menu and set active branch label."""
+        if not current_branch:
+            current_branch = self.current_branch
         self.branches = branches
         self.current_branch = current_branch
         display_name = current_branch or "Branch"
@@ -245,3 +277,11 @@ class Toolbar(QFrame):
             """)
         self.btn_pull.setText(f"⇊ Pull{' ↓' + str(behind) if behind else ''}")
         self.btn_push.setText(f"↑ Push{' ↑' + str(ahead) if ahead else ''}")
+
+    def set_loading(self, loading: bool) -> None:
+        """Update enabled state of action buttons during background operations."""
+        self.btn_refresh.setEnabled(not loading)
+        self.btn_fetch.setEnabled(not loading)
+        self.btn_pull.setEnabled(not loading)
+        self.btn_push.setEnabled(not loading)
+

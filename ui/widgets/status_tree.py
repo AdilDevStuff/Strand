@@ -244,11 +244,11 @@ class StatusTree(QWidget):
         self.scroll_area.setWidget(self.content_widget)
         main_layout.addWidget(self.scroll_area, 1)
 
-        # 1. Unstaged Section
-        self._build_unstaged_section()
-
-        # 2. Staged Section
+        # 1. Staged Section
         self._build_staged_section()
+
+        # 2. Unstaged Section
+        self._build_unstaged_section()
 
     def _build_unstaged_section(self) -> None:
         self.unstaged_header = QWidget(self.content_widget)
@@ -324,6 +324,13 @@ class StatusTree(QWidget):
         self.btn_unstage_all.setVisible(True)
         self.btn_unstage_all.setEnabled(len(staged) > 0)
 
+        # Update title text with counts
+        u_suffix = f" ({len(unstaged)})" if unstaged else ""
+        self.lbl_unstaged_title.setText(f"Unstaged Changes{u_suffix}")
+
+        s_suffix = f" ({len(staged)})" if staged else ""
+        self.lbl_staged_title.setText(f"Staged Changes{s_suffix}")
+
         # Compute stats
         u_add = sum(c.additions for c in unstaged) or (14 if unstaged else 0)
         u_del = sum(c.deletions for c in unstaged) or (3 if unstaged else 0)
@@ -346,6 +353,14 @@ class StatusTree(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
+        # Populate Staged first (maintaining order for test access)
+        for chg in staged:
+            row = FileRowWidget(chg, is_active=(self.selected_file == chg))
+            row.selected.connect(self._on_row_selected)
+            row.toggle_stage.connect(self._on_row_toggle)
+            self._row_widgets.append(row)
+            self.staged_layout.addWidget(row)
+
         # Populate Unstaged
         for chg in unstaged:
             row = FileRowWidget(chg, is_active=(self.selected_file == chg))
@@ -353,14 +368,6 @@ class StatusTree(QWidget):
             row.toggle_stage.connect(self._on_row_toggle)
             self._row_widgets.append(row)
             self.unstaged_layout.addWidget(row)
-
-        # Populate Staged
-        for chg in staged:
-            row = FileRowWidget(chg, is_active=(self.selected_file == chg))
-            row.selected.connect(self._on_row_selected)
-            row.toggle_stage.connect(self._on_row_toggle)
-            self._row_widgets.append(row)
-            self.staged_layout.addWidget(row)
 
     def select_file(self, change: Optional[FileChange]) -> None:
         self.selected_file = change

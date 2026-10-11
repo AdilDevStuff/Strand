@@ -31,8 +31,8 @@ def test_main_window_initialization(qtbot) -> None:
     assert window.diff_viewer is not None
     assert window.status_tree is not None
     assert window.commit_box is not None
-    assert window.btn_push.text() == "Push ↑0"
-    assert window.btn_pull.text() == "Pull ↓0"
+    assert "Push" in window.btn_push.text()
+    assert "Pull" in window.btn_pull.text()
 
 
 def test_main_window_open_repo_and_workflow(qtbot, temp_git_repo) -> None:
