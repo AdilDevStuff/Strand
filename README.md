@@ -113,7 +113,7 @@ Before installing Strand, ensure the following are installed on your system:
   - Debian / Ubuntu:
     ```bash
     sudo apt-get update
-    sudo apt-get install -y build-essential python3-dev libgit2-dev libgl1-mesa-glx
+    sudo apt-get install -y build-essential python3-dev libgit2-dev libgl1 libegl1
     ```
   - Fedora:
     ```bash
@@ -134,7 +134,7 @@ Before installing Strand, ensure the following are installed on your system:
 
 ```bash
 # Clone the repository
-git clone https://codeberg.org/AdilDevStuff/Strand
+git clone https://github.com/AdilDevStuff/Strand.git
 cd strand
 
 # Create virtual environment and install Strand with development dependencies
