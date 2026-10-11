@@ -41,12 +41,17 @@ except ImportError as _err:
         print("    .venv/bin/python main.py")
     sys.exit(1)
 
+# AppImage needs its private libraries while loading the frozen executable, but
+# system Git must not inherit that path or it will load incompatible libraries.
+if getattr(sys, "frozen", False):
+    os.environ.pop("LD_LIBRARY_PATH", None)
+
 from core.git_service import find_git_executable
 from services.app_state import AppState
 from ui.main_window import MainWindow
 from ui.theme import Theme
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __app_name__ = "Strand"
 
 
