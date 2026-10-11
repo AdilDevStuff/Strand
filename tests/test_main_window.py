@@ -31,6 +31,9 @@ def test_main_window_initialization(qtbot) -> None:
     assert window.diff_viewer is not None
     assert window.status_tree is not None
     assert window.commit_box is not None
+    assert window.view_stack.currentWidget() == window.home_screen
+    assert window.btn_home_open_repo.text() == "Open Local Repository"
+    assert window.btn_home_clone_repo.text() == "Clone Repository"
     assert "Push" in window.btn_push.text()
     assert "Pull" in window.btn_pull.text()
 
@@ -54,6 +57,7 @@ def test_main_window_open_repo_and_workflow(qtbot, temp_git_repo) -> None:
     # Wait for async repo initialization
     qtbot.waitUntil(lambda: len(window.graph_view.commits) == 1, timeout=4000)
     assert window.graph_view.commits[0].summary == "Initial hello commit"
+    assert window.view_stack.currentWidget() == window.main_h_splitter
     assert window.lbl_repo_name.text() == os.path.basename(temp_git_repo)
     assert window.combo_branch.currentText() == "master"
 
