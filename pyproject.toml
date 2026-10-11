@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strand"
+version = "0.1.0"
+description = "Strand: Production-grade, high-performance desktop Git client built with Python, Qt6, and libgit2"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Strand Core Team", email = "team@strand.local"}
+]
+requires-python = ">=3.11"
+keywords = ["git", "gui", "desktop", "pyside6", "pygit2", "strand", "developer-tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+dependencies = [
+    "pygit2>=1.15.0",
+    "PySide6-Essentials>=6.7.0",
+    "unidiff>=0.7.5",
+    "Pygments>=2.17.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-qt>=4.4.0",
+    "pyinstaller>=6.0.0",
+]
+
+[project.scripts]
+strand = "main:main"
+gitfiend = "main:main"
+git-gui-client = "main:main"
+
+[project.gui-scripts]
+strand-gui = "main:main"
+gitfiend-gui = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["core*", "services*", "ui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
