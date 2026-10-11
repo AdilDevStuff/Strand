@@ -172,6 +172,7 @@ class LoadingOverlay(QWidget):
         """Show full overlay, dimming app and animating spinner."""
         self.lbl_title.setText(title)
         self.lbl_subtext.setText(subtext)
+        self.progress_bar.setRange(0, 0)
         self.btn_dismiss.setVisible(False)
         self.spinner.start()
         self._stuck_timer.start()
@@ -180,6 +181,13 @@ class LoadingOverlay(QWidget):
             self.setGeometry(0, 0, self.parentWidget().width(), self.parentWidget().height())
         self.raise_()
         self.show()
+
+    def set_progress(self, value: int, subtext: str = "") -> None:
+        """Show determinate progress and optionally update the operation detail."""
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(max(0, min(100, value)))
+        if subtext:
+            self.lbl_subtext.setText(subtext)
 
     def hide_loading(self) -> None:
         """Hide overlay and stop spinner."""

@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+import re
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QProcess, QSize, QTimer, Qt
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from core.models import CommitNode, FileChange, FileStatus, Hunk
 from services.app_state import AppState
+from services.git_worker import GitWorkerThread
 from ui.theme import Theme
 from ui.widgets.branch_list import BranchListWidget
 from ui.widgets.commit_box import CommitBox
@@ -435,6 +437,7 @@ class MainWindow(QMainWindow):
         # Toolbar actions
         self.sidebar_branches.open_repo_requested.connect(self._prompt_open_repository)
         self.sidebar_branches.repository_selected.connect(self._switch_repository)
+        self.sidebar_branches.close_repo_requested.connect(self._close_current_repository)
         self.toolbar.checkout_requested.connect(self._on_checkout_requested)
         self.toolbar.fetch_requested.connect(self._on_fetch_requested)
         self.toolbar.pull_requested.connect(self._on_pull_requested)
@@ -738,6 +741,11 @@ class MainWindow(QMainWindow):
         )
         self.state.open_repository(path)
 
+    def _close_current_repository(self) -> None:
+        """Close the active repository and return to the home screen."""
+        self._closing_repo_path = self.state.current_repo_path
+        self.state.close_repository()
+
     def _prompt_clone_repository(self) -> None:
         repo_url, ok = QInputDialog.getText(self, "Clone Repository", "Repository URL:")
         if not ok or not repo_url.strip():
@@ -768,23 +776,40 @@ class MainWindow(QMainWindow):
             immediate=False,
         )
 
-        def _clone_repo() -> str:
-            result = subprocess.run(
-                ["git", "clone", normalized_url, clone_path],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
-                err = result.stderr.strip() or result.stdout.strip() or "git clone failed"
-                raise RuntimeError(err)
-            return clone_path
+        self._clone_thread = GitWorkerThread(
+            ["git", "clone", "--progress", normalized_url, clone_path],
+            cwd=target_parent,
+            parent=self,
+        )
+        self._clone_thread.line_received.connect(self._on_clone_progress)
+        self._clone_thread.result.connect(
+            lambda _result: self._on_clone_success(clone_path)
+        )
+        self._clone_thread.error.connect(self._on_clone_error)
+        self._clone_thread.finished.connect(self._on_clone_finished)
+        self._clone_thread.start()
 
-        def _on_clone_success(path: str) -> None:
-            self._show_success(f"Cloned repository {os.path.basename(path)}")
-            self.state.open_repository(path)
+    def _on_clone_progress(self, line: str) -> None:
+        """Translate Git's progress output into the clone overlay."""
+        match = re.search(r"(\d+)%", line)
+        progress = int(match.group(1)) if match else None
+        detail = re.sub(r"\s+", " ", line).strip()
+        if progress is not None:
+            self.loading_overlay.set_progress(progress, detail)
+        elif detail:
+            self.loading_overlay.lbl_subtext.setText(detail)
 
-        self.state._execute_async(_clone_repo, on_success=_on_clone_success)
+    def _on_clone_success(self, path: str) -> None:
+        self._show_success(f"Cloned repository {os.path.basename(path)}")
+        self.state.open_repository(path)
+
+    def _on_clone_error(self, message: str) -> None:
+        self.stop_loading()
+        self._show_error(message)
+
+    def _on_clone_finished(self) -> None:
+        self.stop_loading()
+        self._clone_thread = None
 
     def _on_repo_opened(self, repo_path: str) -> None:
         self.stop_loading()
@@ -800,7 +825,21 @@ class MainWindow(QMainWindow):
 
     def _on_repo_closed(self) -> None:
         self.stop_loading()
+        closing_path = getattr(self, "_closing_repo_path", None)
+        self.sidebar_branches.repository_paths = [
+            path
+            for path in self.sidebar_branches.repository_paths
+            if os.path.abspath(path) != os.path.abspath(closing_path or "")
+        ]
+        remaining_paths = self.sidebar_branches.repository_paths
+        if remaining_paths:
+            self._set_home_visible(False)
+            self.sidebar_branches.set_repositories(remaining_paths)
+            self.state.open_repository(remaining_paths[0])
+            return
+
         self._set_home_visible(True)
+        self.sidebar_branches.set_repositories([])
         self.sidebar_branches.set_repo_name("No repository")
         self.setWindowTitle("Strand")
         self.sidebar_branches.set_branches({"local": [], "remote": []}, "")

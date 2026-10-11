@@ -45,6 +45,7 @@ class BranchListWidget(QWidget):
     tag_selected = Signal(str)
     open_repo_requested = Signal()
     repository_selected = Signal(str)
+    close_repo_requested = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -105,6 +106,7 @@ class BranchListWidget(QWidget):
 
         # 2. PROJECT: <name> ⌵ Header
         proj_bar = QWidget(self)
+        proj_bar.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         proj_layout = QHBoxLayout(proj_bar)
         proj_layout.setContentsMargins(0, 4, 0, 4)
         proj_layout.setSpacing(6)
@@ -116,34 +118,44 @@ class BranchListWidget(QWidget):
             font-weight: 700;
             letter-spacing: 0.5px;
         """)
-        proj_layout.addWidget(self.lbl_project_prefix)
+        self.lbl_project_prefix.setVisible(False)
 
         self.btn_project = QToolButton(proj_bar)
         self.btn_project.setText(self.repo_name)
         self.btn_project.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.btn_project.setPopupMode(QToolButton.InstantPopup)
         self.btn_project.setCursor(Qt.PointingHandCursor)
+        self.btn_project.setMinimumHeight(28)
+        self.btn_project.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.btn_project.setStyleSheet(f"""
             QToolButton {{
+                background-color: {Theme.BG_SURFACE};
                 color: {Theme.TEXT_PRIMARY};
                 font-size: 12px;
                 font-weight: 600;
-                border: none;
-                padding: 0;
+                border: 1px solid {Theme.BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 4px 8px;
+                text-align: left;
             }}
-            QToolButton:hover {{ color: {Theme.ACCENT}; }}
+            QToolButton:hover {{
+                background-color: {Theme.BG_SURFACE_HOVER};
+                border-color: {Theme.ACCENT};
+            }}
+            QToolButton:pressed {{
+                background-color: {Theme.BG_SURFACE_ACTIVE};
+            }}
+            QToolButton::menu-indicator {{
+                subcontrol-position: right center;
+                subcontrol-origin: padding;
+                padding-right: 6px;
+            }}
         """)
         self.project_menu = QMenu(self.btn_project)
         self.btn_project.setMenu(self.project_menu)
         self.lbl_project_name = self.btn_project
         self.lbl_repo_name = self.lbl_project_name
-        proj_layout.addWidget(self.btn_project)
-
-        proj_layout.addStretch()
-
-        lbl_proj_chevron = QLabel("⌵", proj_bar)
-        lbl_proj_chevron.setStyleSheet(f"color: {Theme.TEXT_MUTED}; font-size: 11px;")
-        proj_layout.addWidget(lbl_proj_chevron)
+        proj_layout.addWidget(self.btn_project, 1)
 
         layout.addWidget(proj_bar)
 
@@ -185,6 +197,11 @@ class BranchListWidget(QWidget):
     # Public API
     # -------------------------------------------------------------------------
 
+    def resizeEvent(self, event) -> None:
+        """Keep the project dropdown aligned with the sidebar content width."""
+        super().resizeEvent(event)
+        self.btn_project.setFixedWidth(max(0, event.size().width() - 28))
+
     def set_repo_name(self, name: str) -> None:
         """Update displayed project name."""
         self.repo_name = name or "No repository"
@@ -209,6 +226,9 @@ class BranchListWidget(QWidget):
             self.project_menu.addSeparator()
         open_action = self.project_menu.addAction("Open Repository…")
         open_action.triggered.connect(self.open_repo_requested)
+        close_action = self.project_menu.addAction("Close Current Repository")
+        close_action.setEnabled(bool(active_path))
+        close_action.triggered.connect(self.close_repo_requested)
 
     def set_branches(self, branches: Dict[str, List[str]], active_branch: str) -> None:
         """Update local and remote branches."""

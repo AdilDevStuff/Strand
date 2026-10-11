@@ -34,6 +34,7 @@ def test_main_window_initialization(qtbot) -> None:
     assert window.view_stack.currentWidget() == window.home_screen
     assert window.btn_home_open_repo.text() == "Open Local Repository"
     assert window.btn_home_clone_repo.text() == "Clone Repository"
+    assert window.sidebar_branches.btn_project.menu() is not None
     assert "Push" in window.btn_push.text()
     assert "Pull" in window.btn_pull.text()
 
@@ -88,6 +89,68 @@ def test_main_window_open_repo_and_workflow(qtbot, temp_git_repo) -> None:
     qtbot.waitUntil(lambda: len(window.graph_view.commits) == 2, timeout=4000)
     assert window.graph_view.commits[0].summary == "feat: update hello.txt content"
     assert len(window.status_tree.staged_changes) == 0
+
+
+def test_main_window_close_current_repository(qtbot, temp_git_repo) -> None:
+    window = MainWindow(repo_path=temp_git_repo)
+    qtbot.addWidget(window)
+    window.show()
+
+    qtbot.waitUntil(lambda: window.state.current_repo_path == os.path.abspath(temp_git_repo), timeout=4000)
+    close_action = next(
+        action
+        for action in window.sidebar_branches.project_menu.actions()
+        if action.text() == "Close Current Repository"
+    )
+    close_action.trigger()
+
+    qtbot.waitUntil(lambda: window.state.current_repo_path is None, timeout=4000)
+    assert window.view_stack.currentWidget() == window.home_screen
+    assert window.sidebar_branches.repository_paths == []
+
+
+def test_main_window_close_current_repository_activates_next_repo(qtbot, tmp_path) -> None:
+    first_repo = str(tmp_path / "first_repo")
+    second_repo = str(tmp_path / "second_repo")
+    pygit2.init_repository(first_repo)
+    pygit2.init_repository(second_repo)
+
+    window = MainWindow(repo_path=first_repo)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitUntil(
+        lambda: window.state.current_repo_path == os.path.abspath(first_repo),
+        timeout=4000,
+    )
+
+    window.state.open_repository(second_repo)
+    qtbot.waitUntil(
+        lambda: window.state.current_repo_path == os.path.abspath(second_repo),
+        timeout=4000,
+    )
+    assert window.sidebar_branches.repository_paths == [
+        os.path.abspath(first_repo),
+        os.path.abspath(second_repo),
+    ]
+
+    window._close_current_repository()
+
+    qtbot.waitUntil(
+        lambda: window.state.current_repo_path == os.path.abspath(first_repo),
+        timeout=4000,
+    )
+    assert window.view_stack.currentWidget() == window.main_h_splitter
+    assert window.sidebar_branches.repository_paths == [os.path.abspath(first_repo)]
+
+
+def test_clone_progress_updates_loading_overlay(qtbot) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window._on_clone_progress("Receiving objects: 42% (21/50)")
+
+    assert window.loading_overlay.progress_bar.value() == 42
+    assert "Receiving objects" in window.loading_overlay.lbl_subtext.text()
 
 
 def test_main_window_branch_creation(qtbot, temp_git_repo) -> None:
