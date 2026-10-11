@@ -1,4 +1,4 @@
-"""Desktop application entry point and CLI runner for GitFiend Client."""
+"""Desktop application entry point and CLI runner for Strand."""
 
 from __future__ import annotations
 

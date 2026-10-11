@@ -433,7 +433,8 @@ class MainWindow(QMainWindow):
         self.sidebar_branches.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
 
         # Toolbar actions
-        self.toolbar.open_repo_requested.connect(self._prompt_open_repository)
+        self.sidebar_branches.open_repo_requested.connect(self._prompt_open_repository)
+        self.sidebar_branches.repository_selected.connect(self._switch_repository)
         self.toolbar.checkout_requested.connect(self._on_checkout_requested)
         self.toolbar.fetch_requested.connect(self._on_fetch_requested)
         self.toolbar.pull_requested.connect(self._on_pull_requested)
@@ -726,6 +727,17 @@ class MainWindow(QMainWindow):
             )
             self.state.open_repository(path)
 
+    def _switch_repository(self, path: str) -> None:
+        """Activate one of the repositories already opened in this window."""
+        if not path or os.path.abspath(path) == self.state.current_repo_path:
+            return
+        self.show_loading(
+            "Switching Repository...",
+            f"Loading Git history and repository tree at '{os.path.basename(path)}'...",
+            immediate=False,
+        )
+        self.state.open_repository(path)
+
     def _prompt_clone_repository(self) -> None:
         repo_url, ok = QInputDialog.getText(self, "Clone Repository", "Repository URL:")
         if not ok or not repo_url.strip():
@@ -778,7 +790,10 @@ class MainWindow(QMainWindow):
         self.stop_loading()
         base_name = os.path.basename(repo_path)
         self._set_home_visible(False)
-        self.toolbar.set_repo(repo_path)
+        repository_paths = list(self.sidebar_branches.repository_paths)
+        if repo_path not in repository_paths:
+            repository_paths.append(repo_path)
+        self.sidebar_branches.set_repositories(repository_paths, repo_path)
         self.sidebar_branches.set_repo_name(base_name)
         self.setWindowTitle(f"Strand - {base_name}")
         self._show_success(f"Opened repository {base_name}")
@@ -786,7 +801,6 @@ class MainWindow(QMainWindow):
     def _on_repo_closed(self) -> None:
         self.stop_loading()
         self._set_home_visible(True)
-        self.toolbar.set_repo("")
         self.sidebar_branches.set_repo_name("No repository")
         self.setWindowTitle("Strand")
         self.sidebar_branches.set_branches({"local": [], "remote": []}, "")

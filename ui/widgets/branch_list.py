@@ -13,7 +13,9 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
+    QToolButton,
     QScrollArea,
     QSizePolicy,
     QTreeWidget,
@@ -41,10 +43,13 @@ class BranchListWidget(QWidget):
     stash_manage_requested = Signal()
     tag_create_requested = Signal()
     tag_selected = Signal(str)
+    open_repo_requested = Signal()
+    repository_selected = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.repo_name: str = "web-app"
+        self.repository_paths: List[str] = []
         self.active_branch: str = ""
         self.branches_data: Dict[str, List[str]] = {"local": [], "remote": []}
         self.tags_data: List[Any] = []
@@ -113,14 +118,26 @@ class BranchListWidget(QWidget):
         """)
         proj_layout.addWidget(self.lbl_project_prefix)
 
-        self.lbl_project_name = QLabel(self.repo_name, proj_bar)
-        self.lbl_project_name.setStyleSheet(f"""
-            color: {Theme.TEXT_PRIMARY};
-            font-size: 12px;
-            font-weight: 600;
+        self.btn_project = QToolButton(proj_bar)
+        self.btn_project.setText(self.repo_name)
+        self.btn_project.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.btn_project.setPopupMode(QToolButton.InstantPopup)
+        self.btn_project.setCursor(Qt.PointingHandCursor)
+        self.btn_project.setStyleSheet(f"""
+            QToolButton {{
+                color: {Theme.TEXT_PRIMARY};
+                font-size: 12px;
+                font-weight: 600;
+                border: none;
+                padding: 0;
+            }}
+            QToolButton:hover {{ color: {Theme.ACCENT}; }}
         """)
+        self.project_menu = QMenu(self.btn_project)
+        self.btn_project.setMenu(self.project_menu)
+        self.lbl_project_name = self.btn_project
         self.lbl_repo_name = self.lbl_project_name
-        proj_layout.addWidget(self.lbl_project_name)
+        proj_layout.addWidget(self.btn_project)
 
         proj_layout.addStretch()
 
@@ -171,7 +188,27 @@ class BranchListWidget(QWidget):
     def set_repo_name(self, name: str) -> None:
         """Update displayed project name."""
         self.repo_name = name or "No repository"
-        self.lbl_project_name.setText(self.repo_name)
+        self.btn_project.setText(self.repo_name)
+
+    def set_repositories(self, paths: List[str], active_path: str = "") -> None:
+        """Populate the project dropdown with repositories opened in this window."""
+        self.repository_paths = list(dict.fromkeys(paths))
+        self.project_menu.clear()
+        unique_paths = self.repository_paths
+        active_normalized = os.path.abspath(active_path.replace("\\", "/")) if active_path else ""
+        for path in unique_paths:
+            display_path = os.path.abspath(path.replace("\\", "/"))
+            action = self.project_menu.addAction(os.path.basename(display_path))
+            action.setToolTip(path)
+            action.setCheckable(True)
+            action.setChecked(display_path == active_normalized)
+            action.triggered.connect(
+                lambda checked=False, selected=path: self.repository_selected.emit(selected)
+            )
+        if unique_paths:
+            self.project_menu.addSeparator()
+        open_action = self.project_menu.addAction("Open Repository…")
+        open_action.triggered.connect(self.open_repo_requested)
 
     def set_branches(self, branches: Dict[str, List[str]], active_branch: str) -> None:
         """Update local and remote branches."""

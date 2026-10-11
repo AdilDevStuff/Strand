@@ -25,7 +25,6 @@ class Toolbar(QFrame):
     Top navigation bar displaying repository pill, branch selector pill,
     sync counter badge [ ↑ ahead  ↓ behind ], and action buttons [Fetch], [Pull], [Push].
     """
-    open_repo_requested = Signal()
     refresh_requested = Signal()
     checkout_requested = Signal(str)
     new_branch_requested = Signal(str)
@@ -35,7 +34,6 @@ class Toolbar(QFrame):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.repo_path: str = ""
         self.current_branch: str = ""
         self.branches: Dict[str, List[str]] = {"local": [], "remote": []}
         self.ahead_count: int = 0
@@ -53,29 +51,7 @@ class Toolbar(QFrame):
         layout.setContentsMargins(14, 6, 14, 6)
         layout.setSpacing(10)
 
-        # 1. Repository Pill Button: [📁 web-app ⌵]
-        self.btn_repo = QPushButton(self)
-        self.btn_repo.setCursor(Qt.PointingHandCursor)
-        self.btn_repo.setText("📁  No repository ⌵")
-        self.btn_repo.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {Theme.BG_SURFACE};
-                color: {Theme.TEXT_PRIMARY};
-                border: 1px solid {Theme.BORDER_DEFAULT};
-                border-radius: 6px;
-                padding: 4px 12px;
-                font-size: 12px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {Theme.BG_SURFACE_HOVER};
-                border-color: {Theme.ACCENT};
-            }}
-        """)
-        self.btn_repo.clicked.connect(self.open_repo_requested)
-        layout.addWidget(self.btn_repo)
-
-        # 2. Branch Switcher Pill Button: [⑂ Branch ⌵]
+        # 1. Branch Switcher Pill Button: [⑂ Branch ⌵]
         self.btn_branch = QToolButton(self)
         self.btn_branch.setPopupMode(QToolButton.InstantPopup)
         self.btn_branch.setCursor(Qt.PointingHandCursor)
@@ -188,34 +164,11 @@ class Toolbar(QFrame):
             }}
         """
 
-    def set_repo(self, path: str) -> None:
-        """Update repository name in pill button."""
-        self.repo_path = path
-        if path:
-            name = os.path.basename(os.path.abspath(path))
-            self.btn_repo.setText(f"📁  {name} ⌵")
-        else:
-            self.btn_repo.setText("📁  No repository ⌵")
-
-    def set_repository(self, path: str) -> None:
-        """Alias for set_repo."""
-        self.set_repo(path)
-
     def set_current_branch(self, branch: str) -> None:
         """Set current active branch."""
         self.current_branch = branch
         display_name = branch or "Branch"
         self.btn_branch.setText(f"⑂  {display_name} ⌵")
-
-    @property
-    def lbl_repo_name(self):
-        class _RepoNameProxy:
-            def __init__(self, tb):
-                self._tb = tb
-            def text(self) -> str:
-                raw = self._tb.repo_path.replace("\\", "/")
-                return os.path.basename(raw)
-        return _RepoNameProxy(self)
 
     @property
     def lbl_ahead_behind(self):
@@ -284,4 +237,3 @@ class Toolbar(QFrame):
         self.btn_fetch.setEnabled(not loading)
         self.btn_pull.setEnabled(not loading)
         self.btn_push.setEnabled(not loading)
-

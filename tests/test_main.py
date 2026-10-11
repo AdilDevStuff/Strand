@@ -153,7 +153,7 @@ def test_main_window_drag_and_drop_event(qtbot, tmp_path):
 
     # Verify state opened dropped repo
     qtbot.waitUntil(lambda: state.current_repo_path == os.path.abspath(repo_dir), timeout=3000)
-    assert window.toolbar.repo_path == os.path.abspath(repo_dir)
+    assert window.sidebar_branches.repository_paths == [os.path.abspath(repo_dir)]
 
 
 def test_main_window_shortcuts_dialog(qtbot, monkeypatch):

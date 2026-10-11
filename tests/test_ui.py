@@ -262,10 +262,6 @@ def test_toolbar_branch_and_sync(qapp, qtbot):
     qtbot.addWidget(toolbar)
     toolbar.resize(800, 50)
 
-    # Set repository
-    toolbar.set_repository(r"C:\MyProjects\AwesomeApp")
-    assert toolbar.lbl_repo_name.text() == "AwesomeApp"
-
     # Set branch
     toolbar.set_current_branch("feature-login")
     assert "feature-login" in toolbar.btn_branch.text()
@@ -278,6 +274,8 @@ def test_toolbar_branch_and_sync(qapp, qtbot):
     actions = [a.text() for a in toolbar.branch_menu.actions()]
     assert any("feature-login" in a for a in actions)
     assert any("origin/main" in a for a in actions)
+
+
 
     # Set sync status
     toolbar.set_sync_status(ahead=2, behind=1)
