@@ -38,7 +38,7 @@ class GitTaskRunnable(QRunnable):
         self.args = args
         self.kwargs = kwargs
         self.signals = WorkerSignals()
-        self.setAutoDelete(True)
+        self.setAutoDelete(False)
 
     def run(self) -> None:
         """Execute task inside the worker thread."""

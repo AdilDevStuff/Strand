@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]" pyinstaller build
+          python -m pip install -e ".[dev]" pyinstaller build pytest-timeout
 
       - name: Configure Git test identity
         run: |
@@ -38,12 +38,13 @@ jobs:
       - name: Run unit & integration tests
         env:
           QT_QPA_PLATFORM: offscreen
+          PYTHONUNBUFFERED: "1"
           GIT_AUTHOR_NAME: "github-actions[bot]"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
           GIT_COMMITTER_NAME: "github-actions[bot]"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
-          xvfb-run -a pytest -v
+          xvfb-run -a pytest -v --timeout=30
 
       - name: Verify package build
         run: |

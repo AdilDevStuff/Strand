@@ -292,6 +292,7 @@ def test_app_state_select_commit(qapp, qtbot, temp_git_repo) -> None:
     with open(fpath, "w") as f:
         f.write("commit test\n")
     state.stage_file("c.txt")
+    qtbot.waitUntil(lambda: len(state.staged_files) == 1, timeout=3000)
     state.commit("Commit test message")
     qtbot.waitUntil(lambda: len(state.commits) == 1, timeout=3000)
 

@@ -137,6 +137,10 @@ class AppState(QObject):
     def close_repository(self) -> None:
         """Close current repository and reset state."""
         self.watcher.unwatch()
+        try:
+            self.thread_pool.waitForDone(2000)
+        except Exception:
+            pass
         self.current_repo_path = None
         self.git_service = None
         self.active_branch = ""
@@ -175,7 +179,8 @@ class AppState(QObject):
 
         def _do_refresh():
             service = self.git_service
-            assert service is not None
+            if service is None:
+                return None
             branch = service.get_current_branch()
             branches = service.get_branches()
             status_list = service.get_status()
@@ -195,6 +200,8 @@ class AppState(QObject):
             return branch, branches, staged, unstaged, graph, ahead, behind, diff_hunks, stashes, tags, conflicts
 
         def _on_success(payload):
+            if payload is None or self.git_service is None:
+                return
             branch, branches, staged, unstaged, graph, ahead, behind, diff_hunks, stashes, tags, conflicts = payload
             self.active_branch = branch
             self.branches = branches
