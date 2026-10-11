@@ -31,6 +31,7 @@ def test_main_window_initialization(qtbot) -> None:
     assert window.diff_viewer is not None
     assert window.status_tree is not None
     assert window.commit_box is not None
+    assert window.content_stack.currentWidget() == window.home_screen
     assert "Push" in window.btn_push.text()
     assert "Pull" in window.btn_pull.text()
 
@@ -110,3 +111,23 @@ def test_main_window_branch_creation(qtbot, temp_git_repo) -> None:
     window.state.checkout_branch("feature/awesome-ui")
     qtbot.waitUntil(lambda: window.combo_branch.currentText() == "feature/awesome-ui", timeout=4000)
     assert window.state.active_branch == "feature/awesome-ui"
+
+
+def test_main_window_returns_to_home_after_closing_repo(qtbot, temp_git_repo) -> None:
+    repo = pygit2.Repository(temp_git_repo)
+    sig = pygit2.Signature("Dev", "dev@example.com")
+    fpath = os.path.join(temp_git_repo, "base.txt")
+    with open(fpath, "w", encoding="utf-8") as f:
+        f.write("base\n")
+    repo.index.add("base.txt")
+    repo.index.write()
+    repo.create_commit("HEAD", sig, sig, "Base commit", repo.index.write_tree(), [])
+
+    window = MainWindow(repo_path=temp_git_repo)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitUntil(lambda: len(window.graph_view.commits) == 1, timeout=4000)
+
+    window.state.close_repository()
+    qtbot.waitUntil(lambda: window.content_stack.currentWidget() == window.home_screen, timeout=2000)
+    assert window.lbl_repo_name.text() == "No repository"

@@ -30,8 +30,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.git_service import find_git_executable
 from core.models import CommitNode, FileChange, FileStatus, Hunk
 from services.app_state import AppState
+from services.git_worker import run_async
 from ui.theme import Theme
 from ui.widgets.branch_list import BranchListWidget
 from ui.widgets.commit_box import CommitBox
@@ -209,7 +211,11 @@ class MainWindow(QMainWindow):
         # Set vertical split proportions: 55% History graph, 45% lower workspace
         self.center_splitter.setSizes([460, 360])
 
-        wa_layout.addWidget(self.center_splitter, 1)
+        self.home_screen = self._build_home_screen()
+        self.content_stack = QStackedWidget(self.work_area)
+        self.content_stack.addWidget(self.home_screen)
+        self.content_stack.addWidget(self.center_splitter)
+        wa_layout.addWidget(self.content_stack, 1)
         self.main_h_splitter.addWidget(self.work_area)
 
         # Proportions: ~20% sidebar (matching commit box), ~80% main area
@@ -276,7 +282,10 @@ class MainWindow(QMainWindow):
 
         # Open initial repository if specified
         if repo_path and os.path.isdir(repo_path):
+            self._set_home_screen_visible(False)
             self.state.open_repository(repo_path)
+        else:
+            self._set_home_screen_visible(True)
 
     # -------------------------------------------------------------------------
     # Layout Builders
@@ -350,6 +359,45 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn_clear)
 
         return bar
+
+    def _build_home_screen(self) -> QWidget:
+        container = QWidget(self.work_area)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(56, 40, 56, 40)
+        layout.setSpacing(14)
+        layout.addStretch(1)
+
+        title = QLabel("Welcome to Strand", container)
+        title.setAlignment(Qt.AlignHCenter)
+        title.setStyleSheet("font-size: 28px; font-weight: 700; color: #f8fafc;")
+        layout.addWidget(title)
+
+        subtitle = QLabel(
+            "Open an existing local Git repository or clone one to get started.",
+            container,
+        )
+        subtitle.setAlignment(Qt.AlignHCenter)
+        subtitle.setStyleSheet(f"font-size: 14px; color: {Theme.TEXT_SECONDARY};")
+        layout.addWidget(subtitle)
+
+        actions_row = QHBoxLayout()
+        actions_row.setSpacing(10)
+        actions_row.setContentsMargins(0, 10, 0, 0)
+
+        self.btn_home_open_repo = QPushButton("📁 Open Local Repository", container)
+        self.btn_home_open_repo.setMinimumHeight(40)
+        self.btn_home_open_repo.clicked.connect(self._prompt_open_repository)
+        actions_row.addWidget(self.btn_home_open_repo)
+
+        self.btn_home_clone_repo = QPushButton("⎇ Clone Repository", container)
+        self.btn_home_clone_repo.setObjectName("primaryButton")
+        self.btn_home_clone_repo.setMinimumHeight(40)
+        self.btn_home_clone_repo.clicked.connect(self._prompt_clone_repository)
+        actions_row.addWidget(self.btn_home_clone_repo)
+
+        layout.addLayout(actions_row)
+        layout.addStretch(2)
+        return container
 
     # -------------------------------------------------------------------------
     # Reactive State Bindings
@@ -677,8 +725,73 @@ class MainWindow(QMainWindow):
             )
             self.state.open_repository(path)
 
+    def _prompt_clone_repository(self) -> None:
+        repo_url, ok = QInputDialog.getText(
+            self,
+            "Clone Repository",
+            "Repository URL:",
+        )
+        if not ok or not repo_url.strip():
+            return
+
+        repo_url = repo_url.strip()
+        parent_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Destination Folder",
+            os.path.expanduser("~"),
+        )
+        if not parent_dir:
+            return
+
+        default_name = os.path.basename(repo_url.rstrip("/"))
+        if not default_name:
+            self._show_error("Unable to determine repository name from URL.")
+            return
+        repo_name = os.path.splitext(default_name)[0]
+        target_path = os.path.join(parent_dir, repo_name)
+        if os.path.exists(target_path):
+            self._show_error(f"Destination already exists: {repo_name}")
+            return
+
+        git_bin = find_git_executable() or "git"
+        self.show_loading(
+            "Cloning Repository...",
+            f"Cloning {repo_url} into '{repo_name}'...",
+            immediate=False,
+        )
+
+        def _do_clone() -> str:
+            try:
+                subprocess.run(
+                    [git_bin, "clone", repo_url, target_path],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                stderr = (exc.stderr or "").strip()
+                stdout = (exc.stdout or "").strip()
+                raise RuntimeError(stderr or stdout or str(exc))
+            return target_path
+
+        def _on_clone_success(cloned_path: str) -> None:
+            self._show_success(f"Cloned repository {os.path.basename(cloned_path)}")
+            self.state.open_repository(cloned_path)
+
+        def _on_clone_error(err: str) -> None:
+            self._show_error(f"Failed to clone repository: {err}")
+
+        run_async(
+            _do_clone,
+            on_success=_on_clone_success,
+            on_error=_on_clone_error,
+            thread_pool=self.state.thread_pool,
+        )
+
     def _on_repo_opened(self, repo_path: str) -> None:
         self.stop_loading()
+        self._set_home_screen_visible(False)
         base_name = os.path.basename(repo_path)
         self.toolbar.set_repo(repo_path)
         self.sidebar_branches.set_repo_name(base_name)
@@ -687,6 +800,7 @@ class MainWindow(QMainWindow):
 
     def _on_repo_closed(self) -> None:
         self.stop_loading()
+        self._set_home_screen_visible(True)
         self.toolbar.set_repo("")
         self.sidebar_branches.set_repo_name("No repository")
         self.setWindowTitle("Strand")
@@ -698,6 +812,12 @@ class MainWindow(QMainWindow):
         self._clear_search()
         self.status_tree.set_changes([], [])
         self.commit_box.clear()
+
+    def _set_home_screen_visible(self, visible: bool) -> None:
+        if visible:
+            self.content_stack.setCurrentWidget(self.home_screen)
+        else:
+            self.content_stack.setCurrentWidget(self.center_splitter)
 
     def _on_branch_changed(self, active_branch: str) -> None:
         self.sidebar_branches.set_active_branch(active_branch)
