@@ -46,7 +46,7 @@ from services.app_state import AppState
 from ui.main_window import MainWindow
 from ui.theme import Theme
 
-__version__ = "0.2.0"
+__version__ = "0.2.2"
 __app_name__ = "Strand"
 
 

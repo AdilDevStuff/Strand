@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "strand"
-version = "0.2.0"
+version = "0.2.2"
 description = "Strand: Production-grade, high-performance desktop Git client built with Python, Qt6, and libgit2"
 readme = "README.md"
 license = "MIT"
