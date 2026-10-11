@@ -30,9 +30,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]" pyinstaller build
 
+      - name: Configure Git test identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Run unit & integration tests
         env:
           QT_QPA_PLATFORM: offscreen
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+          GIT_COMMITTER_NAME: "github-actions[bot]"
+          GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
           xvfb-run -a pytest -v
 

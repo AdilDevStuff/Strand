@@ -23,6 +23,8 @@ from ui.main_window import MainWindow
 def temp_repo(tmp_path):
     repo_dir = str(tmp_path / "test_repo")
     repo = pygit2.init_repository(repo_dir)
+    repo.config["user.name"] = "Developer"
+    repo.config["user.email"] = "dev@example.com"
     sig = pygit2.Signature("Developer", "dev@example.com")
     fpath = os.path.join(repo_dir, "initial.txt")
     with open(fpath, "w", encoding="utf-8") as f:
