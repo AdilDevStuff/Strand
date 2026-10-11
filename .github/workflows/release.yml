@@ -107,16 +107,8 @@ jobs:
             dist/strand-*.zip
 
   build-macos:
-    name: Build macOS Application (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-13
-            arch: x86_64
-          - os: macos-14
-            arch: arm64
+    name: Build macOS Application (Apple Silicon arm64)
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -135,13 +127,16 @@ jobs:
           python -m pip install -e ".[dev]" pyinstaller
 
       - name: Build macOS standalone package
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         run: |
           python build.py --clean
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}-artifacts
+          name: macos-artifacts
           path: |
             dist/strand-*.tar.gz
             dist/strand-*.zip
