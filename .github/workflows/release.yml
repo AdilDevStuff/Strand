@@ -44,7 +44,7 @@ jobs:
 
       - name: Install appimagetool
         run: |
-          curl -fsSL -o /tmp/appimagetool "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
+          curl -fsSL -o /tmp/appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x /tmp/appimagetool
           cd /tmp
           ./appimagetool --appimage-extract
@@ -93,6 +93,9 @@ jobs:
           python -m pip install -e ".[dev]" pyinstaller
 
       - name: Build Windows standalone package (.zip)
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         run: |
           python build.py --clean
 
